@@ -6,4 +6,4 @@ pages_build_output_dir = "public"
 [[d1_databases]]
 binding = "DB"
 database_name = "stq-db"
-database_id = "<YOUR-DATABASE-ID>"
+database_id = "776e2047-52ac-4d6a-a362-b2c1a258b25d"
