@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="theme-color" content="#0a0a0a" />
+<link rel="manifest" href="/manifest.webmanifest" />
+<link rel="icon" href="/assets/icon.svg" type="image/svg+xml" />
+<link rel="stylesheet" href="/assets/style.css" />
+<title>STQ — Admin</title>
+</head>
+<body>
+<header class="topbar">
+  <a href="/" class="brand">
+    <span class="wordmark">STQ</span>
+    <span class="tag">Admin</span>
+  </a>
+  <nav>
+    <a id="nav-play" href="/">Play</a>
+    <a id="nav-board" href="/leaderboard.html">Leaderboard</a>
+    <a id="nav-admin" href="/admin.html">Admin</a>
+    <a id="logout" href="#" class="hidden">Sign out</a>
+  </nav>
+</header>
+
+<main>
+  <!-- Login -->
+  <div id="login-card" class="card hidden" style="max-width:480px; margin:60px auto;">
+    <h1>Admin sign-in</h1>
+    <p>Enter the admin password to manage questions.</p>
+    <div class="field">
+      <label for="pw">Password</label>
+      <input id="pw" type="password" autocomplete="current-password" />
+    </div>
+    <div class="btn-row">
+      <button id="login-btn" class="btn">Sign in</button>
+    </div>
+    <div id="login-error" class="banner bad hidden"></div>
+  </div>
+
+  <!-- Authenticated -->
+  <div id="admin-area" class="hidden">
+
+    <div class="card">
+      <h1 id="form-heading">Add a question</h1>
+      <input type="hidden" id="q-id" />
+
+      <div class="row">
+        <div class="field">
+          <label for="q-difficulty">Difficulty</label>
+          <select id="q-difficulty">
+            <option value="easy">Easy</option>
+            <option value="medium" selected>Medium</option>
+            <option value="hard">Hard</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>&nbsp;</label>
+          <label class="inline-check"><input type="checkbox" id="q-bonus" /> Surprise bonus question (worth double)</label>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="q-notes">Notes / context for the AI (optional)</label>
+        <textarea id="q-notes" placeholder="Other rooms or facts that help generate believable wrong answers"></textarea>
+      </div>
+
+      <h2 style="margin-top:8px;">Part A</h2>
+      <div class="row">
+        <div class="field">
+          <label for="q-a-type">Question type</label>
+          <select id="q-a-type">
+            <option value="multiple-choice">Multiple choice</option>
+            <option value="true-false">True / False</option>
+            <option value="free-form">Free-form (short answer)</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>&nbsp;</label>
+          <label class="inline-check"><input type="checkbox" id="q-a-numeric" /> Answer is numeric</label>
+        </div>
+      </div>
+      <div class="field">
+        <label for="q-a-prompt">Question</label>
+        <textarea id="q-a-prompt"></textarea>
+      </div>
+      <div class="field">
+        <label for="q-a-answer">Correct answer</label>
+        <input type="text" id="q-a-answer" />
+      </div>
+      <div class="field" id="q-a-alts-wrap">
+        <label for="q-a-alts">Other accepted spellings for free-form (comma-separated, optional)</label>
+        <input type="text" id="q-a-alts" placeholder="e.g. cafeteria, lunchroom, lunch room" />
+      </div>
+
+      <label class="inline-check" style="margin-top:8px;">
+        <input type="checkbox" id="has-part-b" /> Add a Part B
+      </label>
+
+      <div id="part-b-block" class="hidden" style="margin-top:14px; padding-top:8px; border-top: 1px solid var(--line);">
+        <h2>Part B</h2>
+        <div class="row">
+          <div class="field">
+            <label for="q-b-type">Question type</label>
+            <select id="q-b-type">
+              <option value="multiple-choice">Multiple choice</option>
+              <option value="true-false">True / False</option>
+              <option value="free-form">Free-form (short answer)</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>&nbsp;</label>
+            <label class="inline-check"><input type="checkbox" id="q-b-numeric" /> Answer is numeric</label>
+          </div>
+        </div>
+        <div class="field">
+          <label for="q-b-prompt">Question</label>
+          <textarea id="q-b-prompt"></textarea>
+        </div>
+        <div class="field">
+          <label for="q-b-answer">Correct answer</label>
+          <input type="text" id="q-b-answer" />
+        </div>
+        <div class="field" id="q-b-alts-wrap">
+          <label for="q-b-alts">Other accepted spellings for free-form (comma-separated, optional)</label>
+          <input type="text" id="q-b-alts" />
+        </div>
+      </div>
+
+      <div class="btn-row" style="margin-top:8px;">
+        <button id="save-btn" class="btn">Save question</button>
+        <button id="cancel-btn" class="btn outline hidden">Cancel edit</button>
+        <span id="save-status" class="sub"></span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Question bank <span class="pill" id="q-total">0</span></h2>
+      <div class="row" style="margin-bottom:10px;">
+        <div class="field">
+          <label for="filter-difficulty">Filter difficulty</label>
+          <select id="filter-difficulty">
+            <option value="">All</option>
+            <option value="easy">Easy</option>
+            <option value="medium">Medium</option>
+            <option value="hard">Hard</option>
+          </select>
+        </div>
+      </div>
+      <ul id="q-list" class="q-list"></ul>
+      <div id="q-empty" class="empty hidden">No questions yet.</div>
+    </div>
+  </div>
+</main>
+
+<footer class="foot">STQ &middot; Lineville Elementary</footer>
+
+<script type="module" src="/assets/admin.js"></script>
+</body>
+</html>

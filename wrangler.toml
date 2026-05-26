@@ -1,0 +1,9 @@
+name = "stq"
+compatibility_date = "2025-05-01"
+pages_build_output_dir = "public"
+
+# D1 binding. Replace <YOUR-DATABASE-ID> with the id from `wrangler d1 create stq-db`.
+[[d1_databases]]
+binding = "DB"
+database_name = "stq-db"
+database_id = "<YOUR-DATABASE-ID>"

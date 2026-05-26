@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="theme-color" content="#0a0a0a" />
+<link rel="manifest" href="/manifest.webmanifest" />
+<link rel="icon" href="/assets/icon.svg" type="image/svg+xml" />
+<link rel="stylesheet" href="/assets/style.css" />
+<title>STQ — Leaderboard</title>
+</head>
+<body>
+<header class="topbar">
+  <a href="/" class="brand">
+    <span class="wordmark">STQ</span>
+    <span class="tag">Leaderboard</span>
+  </a>
+  <nav>
+    <a id="nav-play" href="/">Play</a>
+    <a id="nav-board" href="/leaderboard.html">Leaderboard</a>
+    <a id="nav-admin" href="/admin.html">Admin</a>
+  </nav>
+</header>
+
+<main>
+  <div class="card">
+    <h1>Leaderboards</h1>
+    <p>Top players are ranked by score percentage, with elapsed time as the tiebreaker.</p>
+
+    <div class="lb-tabs" id="lb-tabs">
+      <button data-tab="all"          class="active">All-Time</button>
+      <button data-tab="easy">Easy</button>
+      <button data-tab="medium">Medium</button>
+      <button data-tab="hard">Hard</button>
+      <button data-tab="quick-easy">Quick · Easy</button>
+      <button data-tab="quick-medium">Quick · Medium</button>
+      <button data-tab="quick-hard">Quick · Hard</button>
+    </div>
+
+    <p class="sub" id="lb-context"></p>
+
+    <div id="lb-body">
+      <div class="loading-row"><div class="spinner"></div><span>Loading…</span></div>
+    </div>
+  </div>
+</main>
+
+<footer class="foot">STQ &middot; Lineville Elementary</footer>
+
+<script type="module">
+  import { api, fmtTime, escapeHtml, setPageActiveNav } from "/assets/app.js";
+  setPageActiveNav("nav-board");
+
+  let data = null;
+  let activeTab = "all";
+
+  const tabs = document.querySelectorAll("#lb-tabs button");
+  tabs.forEach((b) => b.addEventListener("click", () => {
+    tabs.forEach((x) => x.classList.toggle("active", x === b));
+    activeTab = b.dataset.tab;
+    render();
+  }));
+
+  async function load() {
+    try {
+      data = await api.get("/api/leaderboard");
+      render();
+    } catch (e) {
+      document.getElementById("lb-body").innerHTML =
+        `<div class="banner bad">Couldn't load leaderboards: ${escapeHtml(e.message)}</div>`;
+    }
+  }
+
+  function render() {
+    if (!data) return;
+    let rows = [], ctx = "";
+    if (activeTab === "all") {
+      rows = data.allTime;
+      ctx = `Top ${data.topN} scores across all difficulty levels.`;
+    } else if (["easy","medium","hard"].includes(activeTab)) {
+      rows = data.byLevel[activeTab];
+      ctx = `Top ${data.topN} on ${activeTab}.`;
+    } else {
+      const lvl = activeTab.replace("quick-","");
+      rows = data.quickByLevel[lvl];
+      ctx = `Top ${data.topN} on ${lvl} with Quick Mode enabled. Must score ${data.quickMinPct}% or higher to appear here.`;
+    }
+    document.getElementById("lb-context").textContent = ctx;
+    const body = document.getElementById("lb-body");
+    if (!rows || rows.length === 0) {
+      body.innerHTML = `<div class="empty">No scores recorded yet.</div>`;
+      return;
+    }
+    body.innerHTML = `
+      <table class="lb-table">
+        <thead>
+          <tr><th>#</th><th>Player</th><th>Level</th><th>Score</th><th>Time</th><th>When</th></tr>
+        </thead>
+        <tbody>
+          ${rows.map((r, i) => `
+            <tr>
+              <td class="rank">${i + 1}</td>
+              <td>${escapeHtml(r.player_name)} ${r.quick_mode ? '<span class="pill quick">QUICK</span>' : ""}</td>
+              <td><span class="pill ${r.difficulty}">${r.difficulty}</span></td>
+              <td class="score">${Math.round(r.percentage)}% <span class="muted" style="font-weight:500;">(${r.score}/${r.max_score})</span></td>
+              <td class="time">${fmtTime(r.elapsed_seconds)}</td>
+              <td class="muted">${escapeHtml(r.completed_at.replace("T"," ").slice(0,16))}</td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+    `;
+  }
+  load();
+</script>
+</body>
+</html>

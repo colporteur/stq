@@ -1,0 +1,15 @@
+{
+  "name": "stq",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "STQ - Storage Room Quiz. Cloudflare Pages + D1 + Pages Functions.",
+  "scripts": {
+    "dev": "wrangler pages dev public --d1 DB=stq-db",
+    "db:apply:remote": "wrangler d1 execute stq-db --remote --file=db/schema.sql",
+    "db:apply:local":  "wrangler d1 execute stq-db --local  --file=db/schema.sql"
+  },
+  "devDependencies": {
+    "wrangler": "^3.78.0"
+  }
+}

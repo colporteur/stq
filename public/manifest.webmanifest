@@ -1,0 +1,17 @@
+{
+  "name": "STQ — Storage Room Quiz",
+  "short_name": "STQ",
+  "description": "Storage Room Quiz for Lineville Elementary.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#ffffff",
+  "theme_color": "#0a0a0a",
+  "icons": [
+    { "src": "/assets/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" },
+    { "src": "/assets/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/assets/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/assets/icon-180.png", "sizes": "180x180", "type": "image/png", "purpose": "any" }
+  ]
+}

@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<meta name="theme-color" content="#0a0a0a" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<link rel="manifest" href="/manifest.webmanifest" />
+<link rel="icon" href="/assets/icon.svg" type="image/svg+xml" />
+<link rel="stylesheet" href="/assets/style.css" />
+<title>STQ — Quiz</title>
+</head>
+<body>
+<header class="topbar">
+  <a href="/" class="brand">
+    <span class="wordmark">STQ</span>
+    <span class="tag" id="header-tag">Quiz</span>
+  </a>
+  <nav>
+    <a href="/">Leave</a>
+  </nav>
+</header>
+
+<main>
+  <!-- Loading state -->
+  <div id="view-loading" class="card center">
+    <div class="loading-row" style="justify-content:center;">
+      <div class="spinner"></div>
+      <span id="loading-msg">Setting up your quiz…</span>
+    </div>
+    <p class="sub" style="margin-top:14px;">The AI is writing the wrong answers for each question. This usually takes a few seconds.</p>
+  </div>
+
+  <!-- Error state -->
+  <div id="view-error" class="card hidden">
+    <h2>Hmm, that didn't work</h2>
+    <div id="error-message" class="banner bad"></div>
+    <div class="btn-row">
+      <a class="btn outline" href="/">Back to home</a>
+    </div>
+  </div>
+
+  <!-- Quiz state -->
+  <div id="view-quiz" class="card hidden">
+    <div class="quiz-meta">
+      <div class="meta-piece">
+        Question <strong id="q-index">1</strong> / <strong id="q-total">20</strong>
+      </div>
+      <div class="meta-piece" id="quick-meta-piece">
+        <span id="quick-mode-label" class="pill quick hidden">QUICK</span>
+        Time left: <strong id="time-left" class="timer">--:--</strong>
+      </div>
+      <div class="meta-piece">
+        Elapsed: <strong id="time-elapsed" class="timer">0:00</strong>
+      </div>
+    </div>
+    <div class="quiz-bar"><div id="quiz-bar-fill" style="width:0"></div></div>
+
+    <div id="q-card">
+      <h2 id="q-part-a-prompt"></h2>
+      <div id="q-part-a-body"></div>
+      <div id="q-part-b" class="hidden">
+        <h3 style="margin-top:18px;">Part B</h3>
+        <h2 id="q-part-b-prompt"></h2>
+        <div id="q-part-b-body"></div>
+      </div>
+    </div>
+
+    <div class="btn-row" style="margin-top:18px; justify-content: space-between;">
+      <span class="sub" id="answer-status">Pick an answer to continue.</span>
+      <button id="next-btn" class="btn" disabled>Next →</button>
+    </div>
+  </div>
+
+  <!-- Results state -->
+  <div id="view-results" class="card hidden">
+    <h1 class="center">Quiz complete!</h1>
+    <div class="results-big">
+      <p class="results-pct" id="r-pct">—</p>
+      <p class="results-frac"><span id="r-score"></span> · <span id="r-time"></span></p>
+    </div>
+    <p class="results-message" id="r-message"></p>
+
+    <div class="row">
+      <a class="btn" href="/leaderboard.html">View leaderboard</a>
+      <a class="btn outline" href="/">Play again</a>
+    </div>
+
+    <details style="margin-top:18px;">
+      <summary><strong>See every question and answer</strong></summary>
+      <div id="r-details" style="margin-top:12px;"></div>
+    </details>
+  </div>
+</main>
+
+<footer class="foot">STQ &middot; Lineville Elementary</footer>
+
+<script type="module" src="/assets/quiz.js"></script>
+</body>
+</html>
