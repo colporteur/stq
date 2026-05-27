@@ -58,3 +58,21 @@ CREATE TABLE IF NOT EXISTS settings (
   key   TEXT PRIMARY KEY,
   value TEXT NOT NULL
 );
+
+-- One row per leaderboard, controlling when it auto-resets and tracking
+-- the last reset cutoff. Resets don't delete attempt rows — the leaderboard
+-- query simply filters to rows where completed_at > last_reset_at. This
+-- lets each board reset independently without touching the others' history.
+--
+-- Boards (the 7 we render):
+--   'all'           — All-Time across every level
+--   'easy','medium','hard'             — per-level boards
+--   'quick-easy','quick-medium','quick-hard' — Quick Mode boards (>=90%)
+CREATE TABLE IF NOT EXISTS leaderboard_settings (
+  board         TEXT PRIMARY KEY,
+  schedule      TEXT NOT NULL DEFAULT 'manual'
+                  CHECK(schedule IN ('manual','daily','weekly','monthly','yearly')),
+  last_reset_at TEXT,
+  next_reset_at TEXT,
+  updated_at    TEXT NOT NULL DEFAULT (datetime('now'))
+);

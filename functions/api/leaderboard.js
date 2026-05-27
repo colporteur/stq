@@ -1,38 +1,57 @@
-import { json } from "../_shared.js";
+import { json, BOARD_FILTERS, applyLazyResets, ensureBoardRows } from "../_shared.js";
 
 // GET /api/leaderboard
-// Returns all leaderboards in one payload:
-//   allTime:                top 10 across all levels (not gated by quick mode)
-//   byLevel.{easy,medium,hard}:    top 10 per level (not gated)
-//   quickByLevel.{easy,medium,hard}: top 10 per level with quick_mode=1 AND percentage >= 90
-//
-// Sort: percentage DESC, elapsed_seconds ASC (faster wins ties), completed_at ASC.
+// Each of the 7 boards may have an independent reset cutoff (last_reset_at).
+// We don't delete attempt rows; we filter to rows newer than each board's
+// cutoff. That lets one board reset without affecting the others.
 
 const TOP_N = 10;
 const QUICK_MIN_PCT = 90;
 
-const SORT = "ORDER BY percentage DESC, elapsed_seconds ASC, completed_at ASC LIMIT ?";
-
 export async function onRequestGet({ env }) {
-  const allTime = (await env.DB.prepare(
-    `SELECT * FROM attempts ${SORT}`
-  ).bind(TOP_N).all()).results || [];
+  // Run any scheduled resets that are due before we read.
+  await applyLazyResets(env);
+  await ensureBoardRows(env);
 
-  const byLevel = {};
-  for (const lvl of ["easy","medium","hard"]) {
-    const { results } = await env.DB.prepare(
-      `SELECT * FROM attempts WHERE difficulty=? ${SORT}`
-    ).bind(lvl, TOP_N).all();
-    byLevel[lvl] = results || [];
+  // Pull all 7 boards' cutoffs in one query.
+  const settingsRows = (await env.DB
+    .prepare("SELECT board, last_reset_at, next_reset_at, schedule FROM leaderboard_settings")
+    .all()).results || [];
+  const cutoffs = {};
+  const schedules = {};
+  for (const r of settingsRows) {
+    cutoffs[r.board] = r.last_reset_at || "1970-01-01 00:00:00";
+    schedules[r.board] = { schedule: r.schedule, last_reset_at: r.last_reset_at, next_reset_at: r.next_reset_at };
+  }
+  const cutoff = (b) => cutoffs[b] || "1970-01-01 00:00:00";
+
+  async function fetchBoard(boardKey, extraSql = "", extraParams = []) {
+    const f = BOARD_FILTERS[boardKey];
+    const sql = `SELECT * FROM attempts
+                 WHERE ${f.sql} AND completed_at > ? ${extraSql}
+                 ORDER BY percentage DESC, elapsed_seconds ASC, completed_at ASC
+                 LIMIT ?`;
+    const params = [...f.params(), cutoff(boardKey), ...extraParams, TOP_N];
+    const { results } = await env.DB.prepare(sql).bind(...params).all();
+    return results || [];
   }
 
-  const quickByLevel = {};
-  for (const lvl of ["easy","medium","hard"]) {
-    const { results } = await env.DB.prepare(
-      `SELECT * FROM attempts WHERE difficulty=? AND quick_mode=1 AND percentage>=? ${SORT}`
-    ).bind(lvl, QUICK_MIN_PCT, TOP_N).all();
-    quickByLevel[lvl] = results || [];
-  }
+  const allTime = await fetchBoard("all");
+  const byLevel = {
+    easy:   await fetchBoard("easy"),
+    medium: await fetchBoard("medium"),
+    hard:   await fetchBoard("hard"),
+  };
+  // Quick boards additionally require percentage >= 90.
+  const quickByLevel = {
+    easy:   await fetchBoard("quick-easy",   "AND percentage >= ?", [QUICK_MIN_PCT]),
+    medium: await fetchBoard("quick-medium", "AND percentage >= ?", [QUICK_MIN_PCT]),
+    hard:   await fetchBoard("quick-hard",   "AND percentage >= ?", [QUICK_MIN_PCT]),
+  };
 
-  return json({ allTime, byLevel, quickByLevel, quickMinPct: QUICK_MIN_PCT, topN: TOP_N });
+  return json({
+    allTime, byLevel, quickByLevel,
+    quickMinPct: QUICK_MIN_PCT, topN: TOP_N,
+    schedules,
+  });
 }

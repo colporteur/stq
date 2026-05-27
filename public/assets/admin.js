@@ -27,6 +27,7 @@ function showAdmin() {
   adminArea.classList.remove("hidden");
   logoutLink.classList.remove("hidden");
   loadQuestions();
+  loadResets();
 }
 document.getElementById("login-btn").addEventListener("click", doLogin);
 document.getElementById("pw").addEventListener("keydown", (e) => {
@@ -241,6 +242,114 @@ function resetForm() {
 
 function setStatus(msg, kind) {
   const el = document.getElementById("save-status");
+  el.textContent = msg;
+  el.style.color = kind === "good" ? "var(--good)" : kind === "bad" ? "var(--bad)" : "var(--ink-3)";
+}
+
+// ---- Leaderboard reset manager ----
+const BOARD_LABELS = {
+  "all":          "All-Time",
+  "easy":         "Easy",
+  "medium":       "Medium",
+  "hard":         "Hard",
+  "quick-easy":   "Quick · Easy",
+  "quick-medium": "Quick · Medium",
+  "quick-hard":   "Quick · Hard",
+};
+const SCHEDULE_OPTS = [
+  ["manual",  "Manual"],
+  ["daily",   "Daily"],
+  ["weekly",  "Weekly"],
+  ["monthly", "Monthly"],
+  ["yearly",  "Yearly"],
+];
+
+document.getElementById("bulk-apply").addEventListener("click", async () => {
+  const schedule = document.getElementById("bulk-schedule").value;
+  setResetStatus("Applying…", "");
+  try {
+    await api.post("/api/admin/leaderboard-resets", { board: "all-boards", schedule }, { admin: true });
+    setResetStatus(`All boards set to ${schedule}.`, "good");
+    loadResets();
+  } catch (e) { setResetStatus("Failed: " + e.message, "bad"); }
+});
+
+document.getElementById("bulk-reset").addEventListener("click", async () => {
+  if (!confirm("Reset every leaderboard right now? Existing attempts stay in the database but will no longer appear on any board.")) return;
+  setResetStatus("Resetting…", "");
+  try {
+    const r = await fetch("/api/admin/leaderboard-resets?action=reset", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": "Bearer " + localStorage.getItem(TOKEN_KEY) },
+      body: JSON.stringify({ board: "all-boards" }),
+    });
+    if (!r.ok) throw new Error(await r.text());
+    setResetStatus("All 7 boards reset.", "good");
+    loadResets();
+  } catch (e) { setResetStatus("Failed: " + e.message, "bad"); }
+});
+
+async function loadResets() {
+  const tbody = document.getElementById("reset-tbody");
+  tbody.innerHTML = `<tr><td colspan="5"><div class="loading-row"><div class="spinner"></div><span>Loading…</span></div></td></tr>`;
+  try {
+    const r = await api.get("/api/admin/leaderboard-resets", { admin: true });
+    renderResets(r.boards || []);
+  } catch (e) {
+    if (e.status === 401) { localStorage.removeItem(TOKEN_KEY); return showLogin(); }
+    tbody.innerHTML = `<tr><td colspan="5" class="banner bad">Failed: ${escapeHtml(e.message)}</td></tr>`;
+  }
+}
+function renderResets(rows) {
+  const order = ["all","easy","medium","hard","quick-easy","quick-medium","quick-hard"];
+  const byBoard = Object.fromEntries(rows.map(r => [r.board, r]));
+  const tbody = document.getElementById("reset-tbody");
+  tbody.innerHTML = "";
+  for (const b of order) {
+    const r = byBoard[b] || { board: b, schedule: "manual", last_reset_at: null, next_reset_at: null };
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td><strong>${escapeHtml(BOARD_LABELS[b])}</strong></td>
+      <td>
+        <select data-board="${b}" class="schedule-select">
+          ${SCHEDULE_OPTS.map(([v,lbl]) => `<option value="${v}" ${v === r.schedule ? "selected" : ""}>${lbl}</option>`).join("")}
+        </select>
+      </td>
+      <td class="muted">${r.last_reset_at ? escapeHtml(r.last_reset_at) : "<span class='muted'>never</span>"}</td>
+      <td class="muted">${r.next_reset_at ? escapeHtml(r.next_reset_at) : "<span class='muted'>—</span>"}</td>
+      <td><button class="btn ghost" data-reset="${b}" style="color:var(--bad);">Reset now</button></td>
+    `;
+    tbody.appendChild(tr);
+  }
+  tbody.querySelectorAll(".schedule-select").forEach((sel) =>
+    sel.addEventListener("change", () => setSchedule(sel.dataset.board, sel.value)));
+  tbody.querySelectorAll("[data-reset]").forEach((btn) =>
+    btn.addEventListener("click", () => resetBoard(btn.dataset.reset)));
+}
+async function setSchedule(board, schedule) {
+  setResetStatus(`Updating ${BOARD_LABELS[board]}…`, "");
+  try {
+    await api.post("/api/admin/leaderboard-resets", { board, schedule }, { admin: true });
+    setResetStatus(`${BOARD_LABELS[board]} → ${schedule}.`, "good");
+    loadResets();
+  } catch (e) { setResetStatus("Failed: " + e.message, "bad"); }
+}
+async function resetBoard(board) {
+  if (!confirm(`Reset the "${BOARD_LABELS[board]}" leaderboard right now?\nAttempts stay in the database but will no longer appear on this board.`)) return;
+  setResetStatus("Resetting…", "");
+  try {
+    const r = await fetch("/api/admin/leaderboard-resets?action=reset", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": "Bearer " + localStorage.getItem(TOKEN_KEY) },
+      body: JSON.stringify({ board }),
+    });
+    if (!r.ok) throw new Error(await r.text());
+    setResetStatus(`${BOARD_LABELS[board]} reset.`, "good");
+    loadResets();
+  } catch (e) { setResetStatus("Failed: " + e.message, "bad"); }
+}
+function setResetStatus(msg, kind) {
+  const el = document.getElementById("reset-status");
   el.textContent = msg;
   el.style.color = kind === "good" ? "var(--good)" : kind === "bad" ? "var(--bad)" : "var(--ink-3)";
 }

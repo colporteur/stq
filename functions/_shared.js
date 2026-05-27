@@ -161,6 +161,78 @@ function parseDistractorArray(text, correctAnswer) {
   return out;
 }
 
+// ============================================================
+// Leaderboard reset support
+// ============================================================
+// The 7 boards we render. Each has a SQL filter used both for fetching
+// the leaderboard and for "resetting" only the rows that contribute to it.
+export const BOARD_NAMES = [
+  "all", "easy", "medium", "hard",
+  "quick-easy", "quick-medium", "quick-hard",
+];
+export const BOARD_FILTERS = {
+  "all":          { sql: "1=1",                                       params: () => [] },
+  "easy":         { sql: "difficulty = ?",                            params: () => ["easy"] },
+  "medium":       { sql: "difficulty = ?",                            params: () => ["medium"] },
+  "hard":         { sql: "difficulty = ?",                            params: () => ["hard"] },
+  "quick-easy":   { sql: "difficulty = ? AND quick_mode = 1",         params: () => ["easy"] },
+  "quick-medium": { sql: "difficulty = ? AND quick_mode = 1",         params: () => ["medium"] },
+  "quick-hard":   { sql: "difficulty = ? AND quick_mode = 1",         params: () => ["hard"] },
+};
+export const VALID_SCHEDULES = ["manual", "daily", "weekly", "monthly", "yearly"];
+
+// Compute the next reset timestamp (ISO-ish, "YYYY-MM-DD HH:MM:SS") given a
+// starting time and a schedule. Returns null for "manual".
+export function computeNextReset(fromIso, schedule) {
+  if (!fromIso || schedule === "manual") return null;
+  const d = new Date(fromIso.replace(" ", "T") + "Z");
+  if (schedule === "daily")   d.setUTCDate(d.getUTCDate() + 1);
+  if (schedule === "weekly")  d.setUTCDate(d.getUTCDate() + 7);
+  if (schedule === "monthly") d.setUTCMonth(d.getUTCMonth() + 1);
+  if (schedule === "yearly")  d.setUTCFullYear(d.getUTCFullYear() + 1);
+  return d.toISOString().slice(0, 19).replace("T", " ");
+}
+export function nowSqlIso() {
+  return new Date().toISOString().slice(0, 19).replace("T", " ");
+}
+
+// Idempotent: make sure all 7 board rows exist with default 'manual' schedule.
+export async function ensureBoardRows(env) {
+  for (const b of BOARD_NAMES) {
+    await env.DB
+      .prepare("INSERT OR IGNORE INTO leaderboard_settings (board, schedule) VALUES (?, 'manual')")
+      .bind(b)
+      .run();
+  }
+}
+
+// Walk every board whose next_reset_at is in the past; advance last_reset_at
+// to that timestamp and compute the next one. This is the "lazy cron" — it
+// runs every time the leaderboard is fetched, so missed periods catch up.
+export async function applyLazyResets(env) {
+  await ensureBoardRows(env);
+  const now = nowSqlIso();
+  const due = (await env.DB
+    .prepare("SELECT board, schedule, next_reset_at FROM leaderboard_settings WHERE next_reset_at IS NOT NULL AND next_reset_at <= ?")
+    .bind(now).all()).results || [];
+  for (const r of due) {
+    let last = r.next_reset_at;
+    let next = computeNextReset(last, r.schedule);
+    // If we skipped several periods (e.g. site idle for a week on a daily schedule),
+    // advance until next_reset_at is in the future.
+    let safety = 0;
+    while (next && next <= now && safety < 5000) {
+      last = next;
+      next = computeNextReset(next, r.schedule);
+      safety++;
+    }
+    await env.DB
+      .prepare("UPDATE leaderboard_settings SET last_reset_at=?, next_reset_at=?, updated_at=? WHERE board=?")
+      .bind(last, next, now, r.board)
+      .run();
+  }
+}
+
 // --- Free-form answer grading ---
 export function normalizeAnswer(s) {
   return String(s ?? "")

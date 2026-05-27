@@ -135,6 +135,42 @@
     </div>
 
     <div class="card">
+      <h2>Leaderboard resets</h2>
+      <p class="sub">Each board can reset on its own schedule, or you can clear one (or all) right now. Resets don't delete any attempt rows &mdash; they just change the cutoff used by the board.</p>
+
+      <div class="row" style="align-items:flex-end; margin: 4px 0 12px;">
+        <div class="field">
+          <label for="bulk-schedule">Set every board's schedule to</label>
+          <select id="bulk-schedule">
+            <option value="manual">Manual (no auto-reset)</option>
+            <option value="daily">Daily</option>
+            <option value="weekly">Weekly</option>
+            <option value="monthly">Monthly</option>
+            <option value="yearly">Yearly</option>
+          </select>
+        </div>
+        <div class="field" style="flex:0 0 auto;">
+          <label>&nbsp;</label>
+          <button id="bulk-apply" class="btn secondary">Apply to all</button>
+        </div>
+        <div class="field" style="flex:0 0 auto;">
+          <label>&nbsp;</label>
+          <button id="bulk-reset" class="btn danger">Reset all 7 boards now</button>
+        </div>
+      </div>
+
+      <div style="overflow-x:auto;">
+        <table class="lb-table" id="reset-table">
+          <thead>
+            <tr><th>Board</th><th>Schedule</th><th>Last reset</th><th>Next reset</th><th></th></tr>
+          </thead>
+          <tbody id="reset-tbody"></tbody>
+        </table>
+      </div>
+      <p id="reset-status" class="sub" style="margin-top:8px;"></p>
+    </div>
+
+    <div class="card">
       <h2>Question bank <span class="pill" id="q-total">0</span></h2>
       <div class="row" style="margin-bottom:10px;">
         <div class="field">

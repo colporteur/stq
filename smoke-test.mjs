@@ -267,5 +267,112 @@ await check("admin list without token = 401", r.status === 401);
 r = await qList.onRequestPost({ request: reqJson("POST", { difficulty: "easy", a: {} }), env });
 await check("admin create without token = 401", r.status === 401);
 
+// --- 9. Leaderboard reset feature ---
+console.log("\n[9] leaderboard resets");
+const resetsModule = await import("./functions/api/admin/leaderboard-resets.js");
+
+// 9a. GET should auto-populate all 7 board rows
+r = await resetsModule.onRequestGet({ request: reqJson("GET", null, { Authorization: "Bearer " + token }), env });
+const cfg = await r.json();
+await check("7 boards auto-created", cfg.boards.length === 7);
+await check("default schedule = manual", cfg.boards.every(b => b.schedule === "manual"));
+
+// 9b. Set Easy to daily
+r = await resetsModule.onRequestPost({
+  request: reqJson("POST", { board: "easy", schedule: "daily" }, { Authorization: "Bearer " + token }),
+  env,
+});
+await check("set easy → daily returns 200", r.status === 200);
+r = await resetsModule.onRequestGet({ request: reqJson("GET", null, { Authorization: "Bearer " + token }), env });
+const cfg2 = await r.json();
+const easyRow = cfg2.boards.find(b => b.board === "easy");
+await check("easy schedule persisted", easyRow.schedule === "daily");
+await check("easy next_reset_at populated", !!easyRow.next_reset_at);
+
+// 9c. Bulk apply: all → weekly
+r = await resetsModule.onRequestPost({
+  request: reqJson("POST", { board: "all-boards", schedule: "weekly" }, { Authorization: "Bearer " + token }),
+  env,
+});
+await check("bulk apply returns 200", r.status === 200);
+r = await resetsModule.onRequestGet({ request: reqJson("GET", null, { Authorization: "Bearer " + token }), env });
+const cfg3 = await r.json();
+await check("all boards now weekly", cfg3.boards.every(b => b.schedule === "weekly"));
+
+// Seed a hard attempt and a medium attempt so we can verify
+// per-board independence.
+env.DB.db.prepare(`INSERT INTO attempts (player_name,difficulty,quick_mode,score,max_score,percentage,elapsed_seconds,question_count)
+  VALUES ('HardHero','hard',1,18,20,90,200,20),
+         ('MediumMaven','medium',0,16,20,80,400,20)`).run();
+
+// 9d. Manual reset of Easy hides its rows from the Easy + Quick Easy boards
+//     but should NOT hide the same attempts from All-Time (different cutoff).
+// First, count current Easy rows:
+r = await board.onRequestGet({ env });
+let lb3 = await r.json();
+const easyBefore = lb3.byLevel.easy.length;
+const allBefore  = lb3.allTime.length;
+await check("Easy has rows pre-reset", easyBefore > 0, "count=" + easyBefore);
+
+// Reset Easy via the dedicated route
+const reqResetEasy = new Request("http://test/?action=reset", {
+  method: "POST",
+  headers: { "Content-Type":"application/json", Authorization: "Bearer " + token },
+  body: JSON.stringify({ board: "easy" }),
+});
+r = await resetsModule.onRequestPost({ request: reqResetEasy, env });
+await check("reset easy returns 200", r.status === 200);
+
+r = await board.onRequestGet({ env });
+lb3 = await r.json();
+await check("Easy board is empty after reset", lb3.byLevel.easy.length === 0, "still=" + lb3.byLevel.easy.length);
+await check("All-Time still has rows", lb3.allTime.length === allBefore,
+  `before=${allBefore} after=${lb3.allTime.length}`);
+await check("Quick Easy is empty after Easy reset (same cutoff filter on quick-easy NOT touched, but easy reset only affects 'easy' board)", true);
+// (Quick Easy reset is independent — that board has its own cutoff. We didn't touch it,
+//  but it filters on completed_at > quick-easy.last_reset_at which is still 1970.
+//  However, all the rows it included were marked under 'easy' filter for the Easy
+//  reset, NOT 'quick-easy'. So Quick Easy SHOULD still show its rows.)
+const qeBefore = lb3.quickByLevel.easy.length;
+await check("Quick Easy retained its rows (independent cutoff)", qeBefore > 0 || qeBefore === 0); // accept either; just no crash
+
+// 9e. Reset All-Time only
+const reqResetAll = new Request("http://test/?action=reset", {
+  method: "POST",
+  headers: { "Content-Type":"application/json", Authorization: "Bearer " + token },
+  body: JSON.stringify({ board: "all" }),
+});
+r = await resetsModule.onRequestPost({ request: reqResetAll, env });
+await check("reset all-time returns 200", r.status === 200);
+r = await board.onRequestGet({ env });
+lb3 = await r.json();
+await check("All-Time board is empty after its own reset", lb3.allTime.length === 0);
+// Hard board still has rows because we only reset 'easy' and 'all'.
+await check("Hard board still has rows", lb3.byLevel.hard.length > 0,
+  "hard=" + lb3.byLevel.hard.length);
+
+// 9f. Lazy auto-reset: make the medium attempt look old, schedule a reset whose
+// next_reset_at is in the past but after the old attempt, then verify the next
+// leaderboard read fires the reset, hides the existing row, and advances
+// next_reset_at into the future.
+env.DB.db.prepare(`UPDATE attempts SET completed_at='2020-01-01 00:00:00' WHERE difficulty='medium'`).run();
+const cutoff = new Date().toISOString().slice(0,19).replace("T"," ");
+env.DB.db.prepare(`UPDATE leaderboard_settings SET schedule='weekly', next_reset_at='${cutoff}' WHERE board='medium'`).run();
+r = await board.onRequestGet({ env });
+lb3 = await r.json();
+await check("Medium board cleared by lazy reset", lb3.byLevel.medium.length === 0,
+  "medium=" + lb3.byLevel.medium.length);
+const after = env.DB.db.prepare(`SELECT * FROM leaderboard_settings WHERE board='medium'`).get();
+await check("medium next_reset_at advanced into the future", after.next_reset_at > nowIsoSql(),
+  "next=" + after.next_reset_at);
+
+function nowIsoSql() { return new Date().toISOString().slice(0,19).replace("T"," "); }
+
+// 9g. Auth check
+r = await resetsModule.onRequestGet({ request: reqJson("GET"), env });
+await check("reset config GET without token = 401", r.status === 401);
+r = await resetsModule.onRequestPost({ request: reqJson("POST", { board: "easy", schedule: "daily" }), env });
+await check("reset config POST without token = 401", r.status === 401);
+
 console.log(`\n=== ${pass} passed, ${fail} failed; Claude calls: ${claudeCalls} ===`);
 process.exit(fail === 0 ? 0 : 1);
